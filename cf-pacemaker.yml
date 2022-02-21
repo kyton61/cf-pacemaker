@@ -1,0 +1,202 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Provision EC2 for pacemaker
+
+Parameters:
+  KeyName:
+    Description: The EC2 Key Pair to allow SSH Access to the instance
+    Type: "AWS::EC2::KeyPair::KeyName"
+  MyIP:
+    Description: IP address allowed to access EC2
+    Type: String
+  # RHEL 8.5
+  Ec2ImageId:
+    Type: String
+    Default: ami-00c8dfcb0b542ee0c
+  Ec2InstanceType:
+    Type: String
+    Default: t3.small
+
+Resources:
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.5.0.0/16
+      Tags:
+        - Key: Name
+          Value: vpc-cf
+
+  IGW:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: igw-cf
+
+  # IGWをVPCにアタッチ
+  AttachGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref VPC
+      InternetGatewayId: !Ref IGW
+
+  PubSubA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: ap-northeast-1a
+      VpcId: !Ref VPC
+      CidrBlock: 10.5.10.0/24
+      Tags:
+        - Key: Name
+          Value: pub-sub-a-cf
+
+  PubSubRT:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: pub-sub-rt-cf
+
+  # PubSub-インターネット間のルーティング
+  PubSubToInternet:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PubSubRT
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref IGW
+
+  # ルートテーブルをサブネットに関連付け
+  AssoPubSubART:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PubSubA
+      RouteTableId: !Ref PubSubRT
+
+  # pacemaker node1
+  EC2Postgres1: 
+    Type: AWS::EC2::Instance
+    Properties: 
+      ImageId: !Ref Ec2ImageId
+      KeyName: !Ref KeyName
+      InstanceType: !Ref Ec2InstanceType
+      IamInstanceProfile: !Ref EC2InstanceProfile
+      NetworkInterfaces: 
+        - AssociatePublicIpAddress: "true"
+          DeviceIndex: "0"
+          SubnetId: !Ref PubSubA
+          PrivateIpAddress: 10.5.10.11
+          GroupSet:
+            - !Ref EC2PacemakerSG
+      UserData: !Base64 |
+        #!/bin/bash
+        # hostnameとhostsの設定 
+        hostnamectl set-hostname ec2-pacemaker-1-cf
+        cat <<EOF | sudo tee -a /etc/hosts
+        10.5.10.11 ec2-pacemaker-1-cf
+        10.5.10.12 ec2-pacemaker-2-cf
+        10.5.10.13 ec2-pacemaker-vip-cf
+        EOF
+
+        # install postgres
+        dnf update -y
+        dnf install -y wget unzip
+        # pacemaker setting
+ 
+        # hostname設定のため再起動
+        shutdown -r now
+        Tags:
+          - Key: Name
+            Value: ec2-pacemaker-1-cf
+
+  EC2Postgres2: 
+    Type: AWS::EC2::Instance
+    Properties: 
+      ImageId: !Ref Ec2ImageId
+      KeyName: !Ref KeyName
+      InstanceType: !Ref Ec2InstanceType
+      IamInstanceProfile: !Ref EC2InstanceProfile
+      NetworkInterfaces: 
+        - AssociatePublicIpAddress: "true"
+          DeviceIndex: "0"
+          SubnetId: !Ref PubSubA
+          PrivateIpAddress: 10.5.10.12
+          GroupSet:
+            - !Ref EC2PacemakerSG
+      UserData: !Base64 |
+        #!/bin/bash
+        # hostnameとhostsの設定 
+        hostnamectl set-hostname ec2-pacemaker-2-cf
+        cat <<EOF | sudo tee -a /etc/hosts
+        10.5.10.11 ec2-pacemaker-1-cf
+        10.5.10.12 ec2-pacemaker-2-cf
+        10.5.10.13 ec2-pacemaker-vip-cf
+        EOF
+
+        # install postgres
+        dnf update -y
+        dnf install -y wget unzip
+        # pacemaker setting
+ 
+        # hostname設定のため再起動
+        shutdown -r now
+        Tags:
+          - Key: Name
+            Value: ec2-pacemaker-2-cf
+
+  # pacemaker node用SG
+  EC2PacemakerSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: ec2-pacemaker-sg-cf
+      GroupDescription: Allow SSH and http and tool
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        # http
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: !Ref MyIP
+        # ssh
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: !Ref MyIP
+        # all
+        - IpProtocol: tcp
+          FromPort: 0
+          ToPort: 65535
+          Description: all
+          CidrIp: 10.5.0.0/16
+
+  EC2IAMRole: 
+    Type: AWS::IAM::Role
+    Properties: 
+      RoleName: ec2-role-cf
+      AssumeRolePolicyDocument: 
+        Version: "2012-10-17"
+        Statement: 
+          - Effect: Allow
+            Principal: 
+              Service: 
+                - "ec2.amazonaws.com"
+            Action: 
+              - "sts:AssumeRole"
+      Path: "/"
+      ManagedPolicyArns: 
+        # 検証用なのでAdmin権限付与
+        - "arn:aws:iam::aws:policy/AdministratorAccess"
+
+  EC2InstanceProfile: 
+    Type: AWS::IAM::InstanceProfile
+    Properties: 
+      Path: "/"
+      Roles: 
+        - Ref: EC2IAMRole
+      InstanceProfileName: ec2-instance-profile-cf
+
+
+Outputs:
+  EC2PublicIP1:
+    Value: !GetAtt EC2Postgres1.PublicIp
+    Description: Public IP of EC2 instance
+
