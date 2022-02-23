@@ -1,5 +1,4 @@
 # cf-pacemaker
-pacemaker setting test on AWS EC2
 
 ## 概要
 AWS EC2 on RHEL8 High Availability Add-OnインスタンスをCloudformationで構築後、
@@ -47,7 +46,7 @@ EC2インスタンスにログインする
 ```
 pcs host auth ec2-pacemaker-1-cf ec2-pacemaker-2-cf -u hacluster -p HaPas_123
 ```
-###クラスタの作成　★上記コマンド実行したノードで
+### クラスタの作成　★上記コマンド実行したノードで
 ```
 pcs cluster setup test-cluster ec2-pacemaker-1-cf ec2-pacemaker-2-cf
 ```
@@ -93,16 +92,24 @@ pcs status
 
 ## 動作確認
 ## .11ノードのフェンシング
+```
 pcs stonith fence ec2-pacemaker-1-cf
-　→.11インスタンスが再起動されるはず
+```
+  →.11インスタンスが再起動されるはず
+```
 pcs status
+```
 
 ## .12ノードのフェールオーバー
+```
 pcs node standby ec2-pacemaker-2-cf
-→.12ノードがstadby状態に
+```
+  →.12ノードがstadby状態に
 
+```
 pcs node unstandby ec2-pacemaker-2-cf
-→.12ノードがOnlineに
+```
+  →.12ノードがOnlineに
 
 
 
