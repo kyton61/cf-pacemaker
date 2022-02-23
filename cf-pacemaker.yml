@@ -8,10 +8,10 @@ Parameters:
   MyIP:
     Description: IP address allowed to access EC2
     Type: String
-  # RHEL 8.5
+  # RHEL HA 8.5
   Ec2ImageId:
     Type: String
-    Default: ami-00c8dfcb0b542ee0c
+    Default: ami-036d6e5989760d528
   Ec2InstanceType:
     Type: String
     Default: t3.small
@@ -73,7 +73,7 @@ Resources:
       RouteTableId: !Ref PubSubRT
 
   # pacemaker node1
-  EC2Postgres1: 
+  EC2Pacemaker1: 
     Type: AWS::EC2::Instance
     Properties: 
       ImageId: !Ref Ec2ImageId
@@ -97,7 +97,7 @@ Resources:
         10.5.10.13 ec2-pacemaker-vip-cf
         EOF
 
-        # install postgres
+        # install
         dnf update -y
         dnf install -y wget unzip
         # pacemaker setting
@@ -108,7 +108,7 @@ Resources:
           - Key: Name
             Value: ec2-pacemaker-1-cf
 
-  EC2Postgres2: 
+  EC2Pacemaker2: 
     Type: AWS::EC2::Instance
     Properties: 
       ImageId: !Ref Ec2ImageId
@@ -132,7 +132,7 @@ Resources:
         10.5.10.13 ec2-pacemaker-vip-cf
         EOF
 
-        # install postgres
+        # install
         dnf update -y
         dnf install -y wget unzip
         # pacemaker setting
@@ -197,6 +197,8 @@ Resources:
 
 Outputs:
   EC2PublicIP1:
-    Value: !GetAtt EC2Postgres1.PublicIp
+    Value: !GetAtt EC2Pacemaker1.PublicIp
     Description: Public IP of EC2 instance
-
+  EC2PublicIP2:
+    Value: !GetAtt EC2PAcemaker2.PublicIp
+    Description: Public IP of EC2 instance
