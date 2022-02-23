@@ -97,11 +97,40 @@ Resources:
         10.5.10.13 ec2-pacemaker-vip-cf
         EOF
 
+        # set JP timezone
+        timedatectl set-timezone Asia/Tokyo
+
         # install
+        # inscall necessafy packages
         dnf update -y
         dnf install -y wget unzip
+        dnf install -y fence-agents-aws jq
+
+        # install and start SSM Agent
+        dnf install -y https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/linux_amd64/amazon-ssm-agent.rpm
+        systemctl enable amazon-ssm-agent
+        systemctl start amazon-ssm-agent
+
+        # install aws-cli
+        curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+        unzip awscliv2.zip
+        sudo ./aws/install
+        ## pacemaker awsvipリソース用にシンボリックリング設定
+        ln -s /usr/local/bin/aws /usr/bin/aws
+        ## aws cli regionの設定 ★region指定しないとawsvipリソースコマンドでerror発生するため
+        REGION=`curl -s http://169.254.169.254/latest/meta-data/local-hostname | cut -d '.' -f2`
+        aws configure set region $REGION
+
         # pacemaker setting
- 
+        systemctl start pcsd.service 
+        systemctl enable pcsd.service
+
+        # haclusterユーザのパスワード設定
+        /usr/bin/passwd hacluster<<EOF 
+        HaPas_123
+        HaPas_123
+        EOF
+
         # hostname設定のため再起動
         shutdown -r now
         Tags:
@@ -132,11 +161,40 @@ Resources:
         10.5.10.13 ec2-pacemaker-vip-cf
         EOF
 
+        # set JP timezone
+        timedatectl set-timezone Asia/Tokyo
+
         # install
+        # inscall necessafy packages
         dnf update -y
         dnf install -y wget unzip
+        dnf install -y fence-agents-aws jq
+       
+        # install and start SSM Agent
+        dnf install -y https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/linux_amd64/amazon-ssm-agent.rpm
+        systemctl enable amazon-ssm-agent
+        systemctl start amazon-ssm-agent
+
+        # install
+        curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+        unzip awscliv2.zip
+        sudo ./aws/install
+        ## pacemaker awsvipリソース用にシンボリックリング設定
+        ln -s /usr/local/bin/aws /usr/bin/aws
+        ## aws cli regionの設定 ★region指定しないとawsvipリソースコマンドでerror発生するため
+        REGION=`curl -s http://169.254.169.254/latest/meta-data/local-hostname | cut -d '.' -f2`
+        aws configure set region $REGION
+        
         # pacemaker setting
- 
+        systemctl start pcsd.service 
+        systemctl enable pcsd.service
+
+        # haclusterユーザのパスワード設定
+        /usr/bin/passwd hacluster<<EOF 
+        HaPas_123
+        HaPas_123
+        EOF 
+
         # hostname設定のため再起動
         shutdown -r now
         Tags:
@@ -166,6 +224,12 @@ Resources:
           FromPort: 0
           ToPort: 65535
           Description: all
+          CidrIp: 10.5.0.0/16
+        # icmp
+        - IpProtocol: icmp
+          FromPort: -1
+          ToPort: -1
+          Description: ICMP
           CidrIp: 10.5.0.0/16
 
   EC2IAMRole: 
@@ -200,5 +264,5 @@ Outputs:
     Value: !GetAtt EC2Pacemaker1.PublicIp
     Description: Public IP of EC2 instance
   EC2PublicIP2:
-    Value: !GetAtt EC2PAcemaker2.PublicIp
+    Value: !GetAtt EC2Pacemaker2.PublicIp
     Description: Public IP of EC2 instance
