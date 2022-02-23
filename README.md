@@ -112,6 +112,9 @@ pcs node unstandby ec2-pacemaker-2-cf
   →.12ノードがOnlineに
 
 
+# 参考
+https://access.redhat.com/documentation/ja-jp/red_hat_enterprise_linux/7/html/deploying_red_hat_enterprise_linux_7_on_public_cloud_platforms/aws-installing-rhel-ha-packages-and-agents_configuring-a-red-hat-high-availability-cluster-on-aws
+https://dev.classmethod.jp/articles/rhel-ha-add-on/
 
 
 
